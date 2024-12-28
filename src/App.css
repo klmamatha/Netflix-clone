@@ -1,0 +1,21 @@
+.pageImg {
+  width: 250px;
+  height: 250px;
+  padding-top: 20px;
+}
+
+.pageImgg {
+  width: 250px;
+  height: 200px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.pageImg img {
+  width: 60%;
+}
+
+.pageImg img:hover {
+  transform: scale(1.2);
+  transition: transform 0.3s ease-in-out;
+}

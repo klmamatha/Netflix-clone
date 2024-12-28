@@ -1,0 +1,355 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import UserNav from "./UserNav";
+import "font-awesome/css/font-awesome.min.css";
+
+const UserhomeModule = () => {
+    const navigate = useNavigate();
+    const [movies, setMovies] = useState([]);
+    const [filteredMovies, setFilteredMovies] = useState([]);
+    const [filters, setFilters] = useState({
+        genre: "",
+        yearRange: "",
+        language: "",
+        country: "",
+        rating: "",
+    });
+
+    const [favorites, setFavorites] = useState({});
+
+    useEffect(() => {
+        fetch("http://localhost:1234/movies")
+            .then((response) => response.json())
+            .then((data) => {
+                setMovies(data);
+                setFilteredMovies(data);
+            })
+            .catch((error) => console.error("Error fetching movies:", error));
+
+        const savedFavorites = JSON.parse(localStorage.getItem("favorites")) || {};
+        setFavorites(savedFavorites);
+    }, []);
+
+    useEffect(() => {
+        const applyFilters = () => {
+            const filtered = movies.filter((movie) => {
+                const matchesGenre = filters.genre ? movie.Genre.includes(filters.genre) : true;
+                const matchesYearRange = filters.yearRange ? checkYearRange(movie.Year) : true;
+                const matchesLanguage = filters.language ? movie.Language.includes(filters.language) : true;
+                const matchesCountry = filters.country ? movie.Country.includes(filters.country) : true;
+                const matchesRating = filters.rating ? parseFloat(movie.imdbRating) >= parseFloat(filters.rating) : true;
+
+                return matchesGenre && matchesYearRange && matchesLanguage && matchesCountry && matchesRating;
+            });
+            setFilteredMovies(filtered);
+        };
+
+        applyFilters();
+    }, [filters, movies]);
+
+    const checkYearRange = (year) => {
+        const yearNum = parseInt(year, 10);
+        switch (filters.yearRange) {
+            case "1900-2000":
+                return yearNum >= 1900 && yearNum <= 2000;
+            case "2000-2010":
+                return yearNum >= 2000 && yearNum <= 2010;
+            case "2010-2020":
+                return yearNum >= 2010 && yearNum <= 2020;
+            case "2020-present":
+                return yearNum >= 2020;
+            default:
+                return true;
+        }
+    };
+
+    const handleFilterChange = (key, value) => {
+        setFilters((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const toggleFavorite = async (movieId) => {
+        const newFavorites = { ...favorites };
+
+        if (newFavorites[movieId]) {
+            delete newFavorites[movieId];
+        } else {
+            newFavorites[movieId] = true;
+        }
+
+        setFavorites(newFavorites);
+        localStorage.setItem("favorites", JSON.stringify(newFavorites));
+
+        try {
+            const userId = localStorage.getItem("userid");
+            if (!userId) return;
+
+            const userResponse = await fetch(`http://localhost:1234/users/${userId}`);
+            const userData = await userResponse.json();
+
+            const updatedFavMovies = newFavorites[movieId]
+                ? [...userData.favmovies, movieId]
+                : userData.favmovies.filter(id => id !== movieId);
+
+            const updatedUser = { ...userData, favmovies: updatedFavMovies };
+
+            await fetch(`http://localhost:1234/users/${userId}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(updatedUser),
+            });
+        } catch (error) {
+            console.error("Error updating favorite movie:", error);
+        }
+    };
+
+    const goToProfilePage = () => {
+        navigate("/profile");
+    };
+
+    return (
+        <div>
+            <UserNav favoriteCount={Object.keys(favorites).length} goToProfile={goToProfilePage} />
+
+            <div style={{ backgroundColor: "#2d1a44", minHeight: "100vh", color: "#fff" }}>
+                {/* Filters */}
+                <div className="container py-4 bg-black">
+                    <div className="row g-2 d-flex align-items-center justify-content-between">
+                        {/* Filter Dropdowns */}
+                        <div className="col-auto flex-grow-1">
+                            <select className="form-select text-primary bg-transparent" onChange={(e) => handleFilterChange("yearRange", e.target.value)}>
+                                <option className="bg-transparent" value="">Select Year Range</option>
+                                <option value="1900-2000">1900-2000</option>
+                                <option value="2000-2010">2000-2010</option>
+                                <option value="2010-2020">2010-2020</option>
+                                <option value="2020-present">2020-Present</option>
+                            </select>
+                        </div>
+
+                        <div className="col-auto flex-grow-1">
+                            <select className="form-select text-primary bg-transparent" onChange={(e) => handleFilterChange("genre", e.target.value)}>
+                                <option value="">Select Genre</option>
+                                <option value="Action">Action</option>
+                                <option value="Drama">Drama</option>
+                                <option value="Comedy">Comedy</option>
+                            </select>
+                        </div>
+
+                        <div className="col-auto flex-grow-1">
+                            <select className="form-select text-primary bg-transparent" onChange={(e) => handleFilterChange("language", e.target.value)}>
+                                <option value="">Select Language</option>
+                                <option value="English">English</option>
+                                <option value="Hindi">Hindi</option>
+                                <option value="French">French</option>
+                            </select>
+                        </div>
+
+                        <div className="col-auto flex-grow-1">
+                            <select className="form-select text-primary bg-transparent" onChange={(e) => handleFilterChange("country", e.target.value)}>
+                                <option value="">Select Country</option>
+                                <option value="USA">USA</option>
+                                <option value="India">India</option>
+                                <option value="UK">UK</option>
+                            </select>
+                        </div>
+
+                        <div className="col-auto flex-grow-1">
+                            <select className="form-select text-primary bg-transparent" onChange={(e) => handleFilterChange("rating", e.target.value)}>
+                                <option value="">Select Rating</option>
+                                <option value="7">7+</option>
+                                <option value="8">8+</option>
+                                <option value="9">9+</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Movies */}
+                <div className="container py-4">
+                    <div className="row">
+                        {filteredMovies.map((movie) => (
+                            <div key={movie.id} className="col-3 mb-4">
+                                <div className="card position-relative">
+                                    <img src={movie.Poster} className="card-img-top" alt={movie.Title} />
+                                    <div className="position-absolute top-0 end-0 m-3">
+                                        <button
+                                            className={`btn btn-link p-0 ${favorites[movie.id] ? "text-danger" : "text-white"}`}
+                                            onClick={() => toggleFavorite(movie.id)}
+                                        >
+                                            <i className={`fa fa-heart fa-3x ${favorites[movie.id] ? "text-danger" : ""}`}></i>
+                                        </button>
+                                    </div>
+                                    <div className="card-body">
+                                        <h5 className="card-title">{movie.Title}</h5>
+                                        <p className="card-text">{movie.Year}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default UserhomeModule;
+=====================================================================
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import netflixLogo from "../images/Netflix-logo.png";
+import maleAvatar from "../images/male.jpg";
+import femaleAvatar from "../images/female.jpeg";
+import defaultAvatar from "../images/default.jpeg";
+
+const UserNav = ({ favoriteCount }) => {
+    const [userDetails, setUserDetails] = useState({});
+    const [showModal, setShowModal] = useState(false);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const userId = localStorage.getItem("userid");
+            if (!userId) {
+                navigate("/login");
+                return;
+            }
+
+            try {
+                const url = "http://localhost:1234/userapi/";
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Failed to fetch profile");
+                const data = await response.json();
+                const user = data.find(user => user.id === userId);
+                if (user) {
+                    setUserDetails(user);
+                } else {
+                    navigate("/login");
+                }
+            } catch (error) {
+                console.error(error);
+                navigate("/login");
+            }
+        };
+        fetchProfile();
+    }, [navigate]);
+
+    const getAvatar = () => {
+        if (userDetails.profileImage) {
+            return userDetails.profileImage;
+        } else if (userDetails.gender === "Male") {
+            return maleAvatar;
+        } else if (userDetails.gender === "Female") {
+            return femaleAvatar;
+        }
+        return defaultAvatar;
+    };
+
+    const handleLogout = () => {
+        localStorage.clear();
+        navigate("/login");
+    };
+
+    const handleProfileClick = () => {
+        navigate("/profile"); // Navigate to the profile page
+    };
+
+    return (
+        <>
+            {/* Navbar */}
+            <nav className="navbar navbar-dark bg-dark">
+                <div className="container-fluid d-flex align-items-center">
+                    {/* Netflix Logo */}
+                    <img
+                        src={netflixLogo}
+                        alt="Netflix Logo"
+                        style={{ width: "100px" }}
+                        className="navbar-brand"
+                    />
+
+                    {/* Home and Popular Links */}
+                    <ul className="navbar-nav d-flex flex-row ms-auto me-5">
+                        <li className="nav-item me-4">
+                            <a href="/userhome" className="nav-link text-light">Home</a>
+                        </li>
+                        <li className="nav-item me-4">
+                            <a href="/popular" className="nav-link text-light">Popular</a>
+                        </li>
+                    </ul>
+
+                    {/* Search and Profile Avatar */}
+                    <div className="d-flex align-items-center">
+                        <input
+                            type="text"
+                            placeholder="Search"
+                            className="form-control me-4"
+                            style={{ maxWidth: "250px" }}
+                        />
+                        <div className="d-flex align-items-center">
+                            <button
+                                className="btn bg-transparent me-4 text-danger"
+                                onClick={handleProfileClick}
+                                style={{ fontSize: "18px" }}
+                            >
+                                <i className="fa fa-heart me-2">{favoriteCount}</i>
+                            </button>
+                            <img
+                                src={getAvatar()}
+                                alt="Profile Avatar"
+                                className="rounded-circle"
+                                style={{ width: "50px", cursor: "pointer" }}
+                                onClick={() => setShowModal(true)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Profile Modal */}
+            {showModal && (
+                <div className="modal show d-block" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
+                    <div className="modal-dialog">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">Account Details</h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => setShowModal(false)}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                {userDetails.fname ? (
+                                    <>
+                                        <p><strong>Name:</strong> {userDetails.fname}</p>
+                                        <p><strong>Email:</strong> {userDetails.email}</p>
+                                        <p><strong>Plan:</strong> Premium</p>
+                                        <p><strong>Quality:</strong> Ultra HD</p>
+                                    </>
+                                ) : (
+                                    <p>Loading...</p>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => navigate("/edit-profile")}
+                                >
+                                    Edit Profile
+                                </button>
+                                <button className="btn btn-danger" onClick={handleLogout}>
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
+export default UserNav;
+
+Myprofile
